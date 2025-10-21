@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Excel to JSON Parser</title>
+    <style>
+        body { font-family: Arial; margin: 40px; }
+        button { padding: 10px 20px; margin: 10px; }
+        pre { background: #f5f5f5; padding: 15px; }
+    </style>
+</head>
+<body>
+    <h1>📊 Конвертер Excel в JSON</h1>
+    <input type="file" id="excelFile" accept=".xlsx,.xls">
+    <button onclick="parseExcel()">Конвертировать в JSON</button>
+    <div id="result"></div>
+
+    <script>
+        async function parseExcel() {
+            const file = document.getElementById('excelFile').files[0];
+            if (!file) return alert('Сначала выбери файл!');
+            
+            const formData = new FormData();
+            formData.append('excelFile', file);
+
+            // ПОЗЖЕ ЗАМЕНИШЬ НА СВОЙ АДРЕС HEROKU
+            const response = await fetch('https://your-backend.herokuapp.com/parse', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+            document.getElementById('result').innerHTML = 
+                '<h3>Результат:</h3><pre>' + JSON.stringify(result, null, 2) + '</pre>';
+        }
+    </script>
+</body>
+</html>
