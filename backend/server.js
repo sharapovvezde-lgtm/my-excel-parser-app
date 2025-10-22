@@ -1,64 +1,64 @@
+// backend/server.js
 const express = require('express');
-const multer = require('multer');
-const XLSX = require('xlsx');
 const cors = require('cors');
-const path = require('path');
-const fs = require('fs');
+const multer = require('multer');
+const xlsx = require('xlsx');
 
 const app = express();
-const upload = multer({ dest: 'uploads/' });
+const port = process.env.PORT || 3000;
 
-// Разрешаем запросы с любого домена
-app.use(cors());
+// --- 1. НАСТРОЙКА CORS (Разрешение для Vercel) ---
+// Вставляем URL вашего фронтенда, чтобы разрешить ему запросы
+const allowedOrigin = 'https://my-excel-parser-app.vercel.app';
+
+const corsOptions = {
+    origin: allowedOrigin
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
-// Главный endpoint для парсинга Excel
-app.post('/parse', upload.single('excelFile'), (req, res) => {
+// --- 2. НАСТРОЙКА MULTER (Для приема файла) ---
+// Используем память для хранения файла, чтобы сразу его обработать
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
+
+// --- 3. API-МАРШРУТ (Обработка загрузки) ---
+// Маршрут: /api/parse
+app.post('/api/parse', upload.single('excelFile'), (req, res) => {
+    // Проверка, был ли загружен файл
+    if (!req.file) {
+        return res.status(400).json({ error: 'Excel file not provided.' });
+    }
+
     try {
-        console.log('Получен файл:', req.file);
+        // req.file.buffer содержит данные файла в виде буфера
+        const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
         
-        if (!req.file) {
-            return res.status(400).json({ error: 'Файл не загружен' });
-        }
+        // Массив для хранения данных со всех листов
+        const jsonData = {};
+        
+        // Перебор всех листов в книге
+        workbook.SheetNames.forEach(sheetName => {
+            const worksheet = workbook.Sheets[sheetName];
+            // Преобразование данных листа в массив JSON-объектов
+            const sheetData = xlsx.utils.sheet_to_json(worksheet);
+            jsonData[sheetName] = sheetData;
+        });
 
-        // Читаем Excel файл
-        const workbook = XLSX.readFile(req.file.path);
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        
-        // Конвертируем в JSON
-        const jsonData = XLSX.utils.sheet_to_json(worksheet);
-        
-        // Удаляем временный файл
-        fs.unlinkSync(req.file.path);
-
-        console.log('Успешно сконвертировано:', jsonData.length, 'записей');
-        
-        // Отправляем результат
-        res.json({
-            success: true,
-            data: jsonData,
-            fileName: req.file.originalname,
-            message: 'Файл успешно сконвертирован!'
+        // Отправляем собранные JSON-данные обратно клиенту
+        res.status(200).json({ 
+            message: "File successfully parsed!",
+            data: jsonData 
         });
 
     } catch (error) {
-        console.error('Ошибка:', error);
-        res.status(500).json({ 
-            success: false, 
-            error: 'Ошибка обработки файла: ' + error.message 
-        });
+        console.error('Parsing error:', error);
+        res.status(500).json({ error: 'Error processing the Excel file.' });
     }
 });
 
-// Тестовый endpoint для проверки
-app.get('/test', (req, res) => {
-    res.json({ message: 'Сервер работает!', status: 'OK' });
-});
-
-// Запускаем сервер
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`🚀 Сервер запущен на порту ${PORT}`);
-    console.log(`📊 API доступен по: http://localhost:${PORT}/parse`);
+// --- 4. ЗАПУСК СЕРВЕРА ---
+app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
 });
